@@ -17,6 +17,7 @@ import {
   type Content,
   type Delete,
   type Emphasis,
+  isLinkNode,
   isTableNode,
   parseMarkdown,
   type Root,
@@ -105,6 +106,29 @@ const handlers: Handlers = {
   break: () => "\n",
 };
 
+/**
+ * GFM turns a bare URL, `www.` address, or email address into a link whose
+ * text is the address. Returns that address, so it can be sent as written
+ * instead of as `<url>` or `[www.example.com](http://www.example.com)`.
+ */
+function bareLinkText(node: Content): string | undefined {
+  if (!isLinkNode(node) || node.children.length !== 1) {
+    return;
+  }
+  const [child] = node.children;
+  if (child?.type !== "text") {
+    return;
+  }
+  const { value } = child;
+  if (
+    node.url === value ||
+    node.url === `mailto:${value}` ||
+    (value.startsWith("www.") && node.url === `http://${value}`)
+  ) {
+    return value;
+  }
+}
+
 export class WhatsAppFormatConverter extends BaseFormatConverter {
   /**
    * Convert an AST to WhatsApp markdown format.
@@ -142,6 +166,13 @@ export class WhatsAppFormatConverter extends BaseFormatConverter {
           value: tableToAscii(node),
           lang: undefined,
         } as Content;
+      }
+      // WhatsApp has no link syntax, so a bare address goes out as written.
+      // An html node is serialized as is, which also keeps formatting markers
+      // inside the address unescaped.
+      const address = bareLinkText(node);
+      if (address !== undefined) {
+        return { type: "html", value: address } as Content;
       }
       return node;
     });

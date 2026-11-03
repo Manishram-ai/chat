@@ -1,4 +1,11 @@
-import { type Root, stringifyMarkdown } from "chat";
+import {
+  link,
+  paragraph,
+  type Root,
+  root,
+  stringifyMarkdown,
+  text,
+} from "chat";
 import { describe, expect, it, vi } from "vitest";
 import { WhatsAppFormatConverter } from "./markdown";
 
@@ -212,6 +219,40 @@ describe("WhatsAppFormatConverter", () => {
       [String.raw`**see \_this\_ too**`, String.raw`*see \_this\_ too*`],
     ])("preserves literal text and formatting in %s", (markdown, expected) => {
       expect(converter.renderPostable({ markdown })).toBe(expected);
+    });
+
+    it.each([
+      [
+        "Track it at https://example.com/track",
+        "Track it at https://example.com/track",
+      ],
+      ["https://example.com/_private_/x", "https://example.com/_private_/x"],
+      ["Email help@example.com", "Email help@example.com"],
+      ["Go to www.example.com", "Go to www.example.com"],
+      [
+        "**Docs:** https://example.com/a_b_c",
+        "*Docs:* https://example.com/a_b_c",
+      ],
+    ])("sends the bare address in %s as written", (markdown, expected) => {
+      expect(converter.renderPostable({ markdown })).toBe(expected);
+    });
+
+    it("keeps links with their own label as Markdown links", () => {
+      const markdown =
+        "[the docs](https://example.com/docs) or [example.com](http://example.com)";
+      expect(converter.renderPostable({ markdown })).toBe(markdown);
+
+      const ast = root([
+        paragraph([
+          link("https://example.com", [
+            text("https://example.com"),
+            text(" docs"),
+          ]),
+        ]),
+      ]);
+      expect(converter.fromAst(ast)).toBe(
+        "[https://example.com docs](https://example.com)"
+      );
     });
 
     it("renders emphasis without character references", () => {
